@@ -88,7 +88,7 @@ public abstract class LightCLICommand implements Command, ExtensionPoint {
             @Override
             public void run() {
                 try {
-                    exitCallback.onExit(execute());
+                    exitCallback.onExit(main());
                 } catch (AbortException e) {
                     // signals an error without stack trace
                     stderr.println(e.getMessage());
