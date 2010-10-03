@@ -18,6 +18,7 @@ import org.apache.sshd.server.session.ServerSession;
 
 import java.security.PublicKey;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * @author Kohsuke Kawaguchi
@@ -44,10 +45,11 @@ public class PluginImpl extends Plugin {
         sshd.setCommandFactory(new CommandFactory() {
             public Command createCommand(String command) {
                 // find the right command and execute it.
-                String name = new QuotedStringTokenizer(command).nextToken();
+                List<String> args = Arrays.asList(new QuotedStringTokenizer(command).toArray());
+                String name = args.get(0);
                 LightCLICommand cmd = LightCLICommand.clone(name);
                 if (cmd==null)  cmd = new ErrorCommand();
-                cmd.setCommand(command);
+                cmd.setCommand(command,args.subList(1,args.size()));
                 return cmd;
             }
         });

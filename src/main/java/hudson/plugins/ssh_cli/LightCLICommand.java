@@ -4,7 +4,6 @@ import hudson.AbortException;
 import hudson.ExtensionList;
 import hudson.ExtensionPoint;
 import hudson.model.Hudson;
-import hudson.util.QuotedStringTokenizer;
 import org.apache.sshd.server.Command;
 import org.apache.sshd.server.Environment;
 import org.apache.sshd.server.ExitCallback;
@@ -15,7 +14,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.logging.Level;
@@ -41,9 +39,9 @@ public abstract class LightCLICommand implements Command, ExtensionPoint {
     protected String command;
 
     /**
-     * Tokenized commands. commands[0] is the sub command name, and arguments follow.
+     * Tokenized arguments, excluding the command name.
      */
-    protected List<String> commands;
+    protected List<String> arguments;
 
     private ExitCallback exitCallback;
 
@@ -63,9 +61,9 @@ public abstract class LightCLICommand implements Command, ExtensionPoint {
      */
     public abstract String getShortDescription();
 
-    /*package*/ void setCommand(String command) {
+    /*package*/ void setCommand(String command, List<String> arguments) {
         this.command = command;
-        commands = Arrays.asList(new QuotedStringTokenizer(command).toArray());
+        this.arguments = arguments;
     }
 
     public void setInputStream(InputStream in) {
@@ -112,7 +110,7 @@ public abstract class LightCLICommand implements Command, ExtensionPoint {
     protected int main() throws Exception {
         CmdLineParser p = new CmdLineParser(this);
         try {
-            p.parseArgument(commands.subList(1,commands.size()));
+            p.parseArgument(arguments);
             return execute();
         } catch (CmdLineException e) {
             stderr.println(e.getMessage());

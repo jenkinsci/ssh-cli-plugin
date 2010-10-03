@@ -8,8 +8,13 @@ import java.io.PrintStream;
  */
 class ErrorCommand extends LightCLICommand {
     @Override
+    protected int main() throws Exception {
+        return super.main();
+    }
+
+    @Override
     protected int execute() throws Exception {
-        new PrintStream(stderr,true).println("Undefined command: "+commands.get(0));
+        new PrintStream(stderr,true).println("Undefined command: "+ command);
         return -1;
     }
 

@@ -1,25 +1,24 @@
 package hudson.plugins.ssh_cli;
 
 import hudson.Extension;
-import hudson.Util;
 import hudson.util.IOUtils;
 
 import java.io.IOException;
 
 /**
- * Test command that just echos back the arguments.
+ * Test command that just echos back the input.
  * @author Kohsuke Kawaguchi
  */
 @Extension
-public class EchoCommand extends LightCLICommand {
+public class CatCommand extends LightCLICommand {
     @Override
     public String getShortDescription() {
-        return "Echos the arguments";
+        return "Echo back the input. This is for test.";
     }
 
     @Override
     protected int execute() throws IOException {
-        stdout.println(Util.join(arguments," "));
+        IOUtils.copy(stdin,stdout);
         return 0;
     }
 }
