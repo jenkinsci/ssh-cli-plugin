@@ -1,14 +1,14 @@
 package hudson.plugins.ssh_cli;
 
-import com.trilead.ssh2.crypto.Base64;
 import hudson.Plugin;
+import hudson.model.Hudson;
+import hudson.model.User;
 import hudson.util.QuotedStringTokenizer;
 import org.apache.sshd.SshServer;
 import org.apache.sshd.common.NamedFactory;
 import org.apache.sshd.common.cipher.AES128CBC;
 import org.apache.sshd.common.cipher.BlowfishCBC;
 import org.apache.sshd.common.cipher.TripleDESCBC;
-import org.apache.sshd.common.util.Buffer;
 import org.apache.sshd.server.Command;
 import org.apache.sshd.server.CommandFactory;
 import org.apache.sshd.server.PublickeyAuthenticator;
@@ -16,25 +16,18 @@ import org.apache.sshd.server.UserAuth;
 import org.apache.sshd.server.auth.UserAuthPublicKey;
 import org.apache.sshd.server.session.ServerSession;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PublicKey;
-import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * @author Kohsuke Kawaguchi
  */
 public class PluginImpl extends Plugin {
+    private SshServer sshd;
+
     @Override
     public void start() throws Exception {
-        SshServer sshd = SshServer.setUpDefaultServer();
+        sshd = SshServer.setUpDefaultServer();
         sshd.setUserAuthFactories(Arrays.<NamedFactory<UserAuth>>asList(new UserAuthPublicKey.Factory()));
         sshd.setCipherFactories(Arrays.asList(// AES 256 and 192 requires unlimited crypto, so don't use that
                 new AES128CBC.Factory(),
@@ -63,40 +56,25 @@ public class PluginImpl extends Plugin {
         // this enables us to authenticate the legitimate user.
         sshd.setPublickeyAuthenticator(new PublickeyAuthenticator() {
             public boolean authenticate(String username, PublicKey key, ServerSession session) {
-                try {
-                    BufferedReader r = new BufferedReader(new FileReader(new File("/home/kohsuke/.ssh/authorized_keys")));
-                    String line;
-                    while ((line=r.readLine())!=null) {
-                        try {
-                            PublicKey k = parseKey(line);
-                            if (key.equals(k))  return true;
-                        } catch (NoSuchAlgorithmException e) {
-                            LOGGER.log(Level.WARNING,"Failed to load public keys",e);
-                        } catch (InvalidKeySpecException e) {
-                            LOGGER.log(Level.WARNING,"Failed to load public keys",e);
-                        } catch (NoSuchProviderException e) {
-                            LOGGER.log(Level.WARNING,"Failed to load public keys",e);
-                        }
-                    }
-                    return false;
-                } catch (IOException e) {
-                    LOGGER.log(Level.WARNING,"Failed to load public keys",e);
-                    return false;
-                }
+                // on unsecured Hudson, perform no authentication
+                Hudson h = Hudson.getInstance();
+                if (!h.isUseSecurity()) return true;
+
+                User u = h.getUser(username);
+                if (u==null)    return false;
+                SSHKeyUserProperty p = u.getProperty(SSHKeyUserProperty.class);
+                if (p==null)    return false;
+
+                return p.hasKey(key);
             }
         });
 
         sshd.start();
     }
 
-    private static PublicKey parseKey(String key) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchProviderException {
-        String[] keyComponents = key.split(" ");
-        if(keyComponents.length!=3 || !keyComponents[0].equals("ssh-rsa"))
-            return null;
-
-        Buffer buf = new Buffer(Base64.decode(keyComponents[1].toCharArray()));
-        return buf.getRawPublicKey();
+    @Override
+    public void stop() throws Exception {
+        if (sshd!=null)
+            sshd.stop();
     }
-
-    private static final Logger LOGGER = Logger.getLogger(PluginImpl.class.getName());
 }

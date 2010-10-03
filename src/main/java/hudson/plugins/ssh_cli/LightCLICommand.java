@@ -85,6 +85,7 @@ public abstract class LightCLICommand implements Command, ExtensionPoint {
     }
 
     public void start(Environment env) throws IOException {
+        this.env = env;
         thread = new Thread("SSH command: "+command) {
             @Override
             public void run() {

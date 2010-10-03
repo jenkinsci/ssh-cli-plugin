@@ -12,4 +12,9 @@ class ErrorCommand extends LightCLICommand {
         new PrintStream(stderr,true).println("Undefined command: "+commands.get(0));
         return -1;
     }
+
+    @Override
+    public String getShortDescription() {
+        return ""; // unused
+    }
 }
