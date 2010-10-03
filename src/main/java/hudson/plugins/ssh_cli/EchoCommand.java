@@ -12,6 +12,11 @@ import java.io.IOException;
 @Extension
 public class EchoCommand extends LightCLICommand {
     @Override
+    public String getShortDescription() {
+        return "Echo back the input. This is for test.";
+    }
+
+    @Override
     protected int execute() throws IOException {
         IOUtils.copy(stdin,stdout);
         return 0;

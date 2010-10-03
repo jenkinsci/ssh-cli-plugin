@@ -1,5 +1,6 @@
 package hudson.plugins.ssh_cli;
 
+import hudson.AbortException;
 import hudson.ExtensionList;
 import hudson.ExtensionPoint;
 import hudson.model.Hudson;
@@ -7,6 +8,8 @@ import hudson.util.QuotedStringTokenizer;
 import org.apache.sshd.server.Command;
 import org.apache.sshd.server.Environment;
 import org.apache.sshd.server.ExitCallback;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,6 +57,12 @@ public abstract class LightCLICommand implements Command, ExtensionPoint {
      */
     private Thread thread;
 
+    /**
+     * Gets the quick summary of what this command does. Should be a one liner.
+     * Used by the help command to generate the list of commands.
+     */
+    public abstract String getShortDescription();
+
     /*package*/ void setCommand(String command) {
         this.command = command;
         commands = Arrays.asList(new QuotedStringTokenizer(command).toArray());
@@ -81,6 +90,10 @@ public abstract class LightCLICommand implements Command, ExtensionPoint {
             public void run() {
                 try {
                     exitCallback.onExit(execute());
+                } catch (AbortException e) {
+                    // signals an error without stack trace
+                    stderr.println(e.getMessage());
+                    exitCallback.onExit(-1,e.getMessage());
                 } catch (Exception e) {
                     LOGGER.log(Level.WARNING,getName()+" failed",e);
                     e.printStackTrace(new PrintStream(stderr));
@@ -92,15 +105,50 @@ public abstract class LightCLICommand implements Command, ExtensionPoint {
     }
 
     /**
+     * Parses arguments with args4j and sets them to this object, then call into {@link #execute()}.
+     * See {@link #execute()} method fo the contract of the return value and exceptions.
+     */
+    protected int main() throws Exception {
+        CmdLineParser p = new CmdLineParser(this);
+        try {
+            p.parseArgument(commands.subList(1,commands.size()));
+            return execute();
+        } catch (CmdLineException e) {
+            stderr.println(e.getMessage());
+            printUsage(p);
+            return -1;
+        }
+    }
+
+    /**
      * The real meat of the command execution.
      *
      * This method is called in a separate thread after all the initialization is done.
      *
-     * @return the exit code.
+     * @return
+     *      0 to indicate a success, otherwise an error code. Used as the exit code of ssh.
+     * @throws AbortException
+     *      If the processing should be aborted. Hudson will report the error message
+     *      without stack trace, and then exits this command.
      * @throws Exception
      *      The problem will be logged, the stack trace reported to stderr, and the client will get a non-zero exit code.
      */
     protected abstract int execute() throws Exception;
+
+    protected void printUsage(CmdLineParser p) {
+        stderr.println("ssh host "+getName()+" args...");
+        printUsageSummary(stderr);
+        p.printUsage(stderr);
+    }
+
+    /**
+     * Called while producing usage. This is a good method to override
+     * to render the general description of the command that goes beyond
+     * a single-line summary.
+     */
+    protected void printUsageSummary(PrintStream stderr) {
+        stderr.println(getShortDescription());
+    }
 
     public void destroy() {
         thread.interrupt();
